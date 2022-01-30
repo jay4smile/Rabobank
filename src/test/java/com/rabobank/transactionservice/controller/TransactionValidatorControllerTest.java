@@ -2,6 +2,7 @@ package com.rabobank.transactionservice.controller;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rabobank.transactionservice.domain.ErrorRecord;
 import com.rabobank.transactionservice.domain.Status;
 import com.rabobank.transactionservice.domain.Transaction;
 import com.rabobank.transactionservice.domain.ValidationStatus;
@@ -20,6 +21,8 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,15 +63,14 @@ public class TransactionValidatorControllerTest {
         String data = objectMapper.writeValueAsString(transaction);
 
         ValidationStatus status = new ValidationStatus();
-        status.setStatus(Status.SUCCESS);
-        status.setMessage("Valid");
+        status.setResult(Status.SUCCESSFUL);
+        status.setErrorRecords(new ArrayList<>());
 
         when(validationService.validateService(any())).thenReturn(status);
         MvcResult mvcResult = mockMvc.perform(post("/api/validation").content(data).contentType(MediaType.APPLICATION_JSON)).andReturn();
         ValidationStatus status1 = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ValidationStatus.class);
 
-        assertEquals(Status.SUCCESS, status1.getStatus());
-        assertEquals("Valid", status1.getMessage());
+        assertEquals(Status.SUCCESSFUL, status1.getResult());
     }
 
 
@@ -85,44 +87,12 @@ public class TransactionValidatorControllerTest {
         ObjectMapper objectMapper = new ObjectMapper();
         String data = objectMapper.writeValueAsString(transaction);
 
-        ValidationStatus status = new ValidationStatus();
-        status.setStatus(Status.SUCCESS);
-        status.setMessage("Valid");
-
-        when(validationService.validateService(any())).thenReturn(status);
         MvcResult mvcResult = mockMvc.perform(post("/api/validation").content(data).contentType(MediaType.APPLICATION_JSON)).andReturn();
         ValidationStatus status1 = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ValidationStatus.class);
 
-        assertEquals(Status.FAIL, status1.getStatus());
-        assertEquals("transactionReference is required!", status1.getMessage());
+        assertEquals(Status.BAD_REQUEST, status1.getResult());
     }
 
-
-    @Test
-    public void testFailedValidationForInvalidData() throws Exception {
-
-        Transaction transaction = new Transaction();
-        transaction.setTransactionReference(BigInteger.valueOf(1212L));
-        transaction.setAccountNumber("12121121");
-        transaction.setDescription("Test Transaction");
-        transaction.setEndBalance(new BigDecimal(1212));
-        transaction.setMutation(new BigDecimal(1));
-        transaction.setStartBalance(new BigDecimal(-1));
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        String data = objectMapper.writeValueAsString(transaction);
-
-        ValidationStatus status = new ValidationStatus();
-        status.setStatus(Status.SUCCESS);
-        status.setMessage("Valid");
-
-        when(validationService.validateService(any())).thenReturn(status);
-        MvcResult mvcResult = mockMvc.perform(post("/api/validation").content(data).contentType(MediaType.APPLICATION_JSON)).andReturn();
-        ValidationStatus status1 = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ValidationStatus.class);
-
-        assertEquals(Status.FAIL, status1.getStatus());
-        assertEquals("startBalance should be positive!", status1.getMessage());
-    }
 
     @Test
     public void testFailedValidationForInvalidDataEndBalance() throws Exception {
@@ -131,7 +101,7 @@ public class TransactionValidatorControllerTest {
         transaction.setTransactionReference(BigInteger.valueOf(1212L));
         transaction.setAccountNumber("12121121");
         transaction.setDescription("Test Transaction");
-        transaction.setEndBalance(new BigDecimal(-1212));
+        transaction.setEndBalance(new BigDecimal(14));
         transaction.setMutation(new BigDecimal(1));
         transaction.setStartBalance(new BigDecimal(12));
 
@@ -139,15 +109,22 @@ public class TransactionValidatorControllerTest {
         String data = objectMapper.writeValueAsString(transaction);
 
         ValidationStatus status = new ValidationStatus();
-        status.setStatus(Status.SUCCESS);
-        status.setMessage("Valid");
+        status.setResult(Status.INCORRECT_END_BALANCE);
 
+        ErrorRecord errorRecord = new ErrorRecord();
+        errorRecord.setReference(transaction.getTransactionReference());
+        errorRecord.setAccountNumber(transaction.getAccountNumber());
+
+        List<ErrorRecord>  errorRecordList = new ArrayList<>();
+        errorRecordList.add(errorRecord);
+
+        status.setErrorRecords(errorRecordList);
         when(validationService.validateService(any())).thenReturn(status);
         MvcResult mvcResult = mockMvc.perform(post("/api/validation").content(data).contentType(MediaType.APPLICATION_JSON)).andReturn();
         ValidationStatus status1 = objectMapper.readValue(mvcResult.getResponse().getContentAsString(), ValidationStatus.class);
 
-        assertEquals(Status.FAIL, status1.getStatus());
-        assertEquals("endBalance should be positive!", status1.getMessage());
+        assertEquals(Status.INCORRECT_END_BALANCE, status1.getResult());
+        assertEquals("12121121", status1.getErrorRecords().get(0).getAccountNumber());
     }
 
 }

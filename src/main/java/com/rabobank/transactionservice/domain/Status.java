@@ -1,5 +1,5 @@
 package com.rabobank.transactionservice.domain;
 
 public enum Status {
-    SUCCESS, FAIL
+    SUCCESSFUL, DUPLICATE_REFERENCE, INCORRECT_END_BALANCE, DUPLICATE_REFERENCE_INCORRECT_END_BALANCE, BAD_REQUEST
 }
